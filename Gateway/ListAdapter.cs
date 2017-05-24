@@ -55,9 +55,23 @@ namespace Gateway
                 view = context.LayoutInflater.Inflate(Resource.Layout.ListItemRow, parent, false);
 
             Message item = this[position];
-            view.FindViewById<TextView>(Resource.Id.Title).Text = item.Text;
-            view.FindViewById<TextView>(Resource.Id.Description).Text = item.Sender + " (" + item.Date.ToString() + ")\n" + item.RequestStatusCode;
+
+            var titleView = view.FindViewById<TextView>(Resource.Id.Title);
+            var descView = view.FindViewById<TextView>(Resource.Id.Description);
+            var statusView = view.FindViewById<TextView>(Resource.Id.Status);
+
+            titleView.Text = item.Text;
+            descView.Text = item.Sender + " (" + item.Date.ToString() + ")";
+            statusView.Text = item.RequestStatusCode ?? "NULL";
             
+            if (item.RequestStatusCode == "OK")
+            {
+                statusView.SetTextColor(new Android.Graphics.Color(38, 183, 33));
+            }
+            else {
+                statusView.SetTextColor(new Android.Graphics.Color(170, 23, 20));
+            }
+
             return view;
         }
     }

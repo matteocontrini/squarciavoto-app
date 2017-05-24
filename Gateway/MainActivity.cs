@@ -10,6 +10,8 @@ using System.Net;
 using System.IO;
 using System.Text;
 using Newtonsoft.Json;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace Gateway
 {
@@ -17,7 +19,15 @@ namespace Gateway
     public class MainActivity : Activity
     {
         private ListAdapter adapter;
-
+        private HttpClient client;
+        
+        public MainActivity()
+        {
+            client = new HttpClient();
+            client.BaseAddress = new Uri("http://192.168.0.11:8080/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        }
+        
         protected override void OnCreate(Bundle bundle)
         {
             base.OnCreate(bundle);
@@ -26,7 +36,7 @@ namespace Gateway
             SetContentView(Resource.Layout.Main);
 
             // Get previous messages
-            var res = Realm.GetInstance().All<Message>().ToList();
+            var res = Realm.GetInstance().All<Message>().OrderByDescending((x) => x.Date).ToList();
             
             ListView listView = FindViewById<ListView>(Resource.Id.listView);
             adapter = new ListAdapter(this, res);
@@ -37,11 +47,14 @@ namespace Gateway
             receiver.OnNewMessage += Receiver_NewMessage;
 
             RegisterReceiver(receiver, new IntentFilter("android.provider.Telephony.SMS_RECEIVED"));
-            
-            //Realm.GetInstance().Write(() =>
+
+            //for (int i = 0; i < 500; i++)
             //{
-            //    Realm.GetInstance().Add(new Message() { Text = "5", Date = DateTimeOffset.Now, Sender = "12356" });
-            //});
+            //    Realm.GetInstance().Write(() =>
+            //    {
+            //        Realm.GetInstance().Add(new Message() { Text = i.ToString(), Date = DateTimeOffset.Now, Sender = "12356" });
+            //    });
+            //}
         }
 
         private void ListView_Click(object sender, AdapterView.ItemClickEventArgs e)
@@ -57,42 +70,58 @@ namespace Gateway
                 alert.Dismiss(); 
             });
             
+            alert.SetButton2("RETRY", (senderAlert, args) => {
+                alert.Dismiss();
+                Forward(item);
+            });
+
             alert.Show();
         }
 
         private void Receiver_NewMessage(object sender, NewMessageEventArgs e)
         {
             adapter.AddTop(e.Message);
-            
-            var request = HttpWebRequest.Create("http://localhost:8080/messages");
-            request.ContentType = "application/json";
-            request.Method = "POST";
-            request.Timeout = 5000;
-            
+
+            Forward(e.Message);
+        }
+
+        private async void Forward(Message message)
+        {
+            string body = JsonConvert.SerializeObject(message);
+            StringContent content = new StringContent(body, Encoding.UTF8, "application/json");
+
             try
             {
-                UTF8Encoding encoding = new UTF8Encoding();
-                byte[] bytes = encoding.GetBytes(JsonConvert.SerializeObject(e.Message));
+                HttpResponseMessage res = await client.PostAsync("messages", content);
 
-                request.ContentLength = bytes.Length;
-                Stream stream = request.GetRequestStream();
-                stream.Write(bytes, 0, bytes.Length);
-
-                HttpWebResponse response = (HttpWebResponse)request.GetResponse();
                 Realm.GetInstance().Write(() =>
                 {
-                    e.Message.RequestStatusCode = response.StatusCode.ToString();
+                    message.RequestStatusCode = res.StatusCode.ToString();
                 });
             }
             catch (Exception ex)
             {
+                string reason = ex.Message;
+
+                if (ex is TaskCanceledException)
+                {
+                    reason = "TIMEOUT";
+                }
+
                 Realm.GetInstance().Write(() =>
                 {
-                    e.Message.RequestStatusCode = ex.Message;
+                    message.RequestStatusCode = reason;
                 });
             }
+
+            RunOnUiThread(() =>
+            {
+                adapter.NotifyDataSetChanged();
+            });
         }
 
+
+        // unused
         void ReadSMS()
         {
             // public static final String INBOX = "content://sms/inbox";
