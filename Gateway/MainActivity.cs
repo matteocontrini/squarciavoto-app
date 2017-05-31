@@ -35,6 +35,11 @@ namespace Gateway
             // Render UI
             SetContentView(Resource.Layout.Main);
 
+            Realm.GetInstance().Write(() =>
+            {
+                Realm.GetInstance().Add(new Message() { Text = "Boot", Date = DateTimeOffset.Now, Sender = "boot" });
+            });
+
             // Get previous messages
             var res = Realm.GetInstance().All<Message>().OrderByDescending((x) => x.Date).ToList();
             
@@ -47,14 +52,6 @@ namespace Gateway
             receiver.OnNewMessage += Receiver_NewMessage;
 
             RegisterReceiver(receiver, new IntentFilter("android.provider.Telephony.SMS_RECEIVED"));
-
-            //for (int i = 0; i < 500; i++)
-            //{
-            //    Realm.GetInstance().Write(() =>
-            //    {
-            //        Realm.GetInstance().Add(new Message() { Text = i.ToString(), Date = DateTimeOffset.Now, Sender = "12356" });
-            //    });
-            //}
         }
 
         private void ListView_Click(object sender, AdapterView.ItemClickEventArgs e)
