@@ -99,6 +99,7 @@ namespace Gateway
             catch (Exception ex)
             {
                 string reason = ex.Message;
+                reason += ex.StackTrace;
 
                 if (ex is TaskCanceledException)
                 {
